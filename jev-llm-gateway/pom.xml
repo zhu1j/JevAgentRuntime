@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.jev.runtime</groupId>
+        <artifactId>jev-agent-runtime</artifactId>
+        <version>1.0.0</version>
+    </parent>
+    <artifactId>jev-llm-gateway</artifactId>
+    <name>jev-llm-gateway</name>
+    <description>LLM gateway: Jev-driven routing, resilience4j circuit breaker + rate limit, key pool, cost accounting, tenant isolation</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.jev.runtime</groupId>
+            <artifactId>jev-runtime-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.jev.runtime</groupId>
+            <artifactId>jev-decision-layer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.jev.runtime</groupId>
+            <artifactId>jev-observability</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-ratelimiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-bulkhead</artifactId>
+        </dependency>
+    </dependencies>
+</project>

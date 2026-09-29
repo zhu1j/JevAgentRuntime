@@ -1,0 +1,52 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: jev-agent-runtime
+  threads:
+    virtual:
+      enabled: true          # Java 21 virtual threads for IO-bound agent steps
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+# ---------------------------------------------------------------------------
+# Jev decision layer
+# The remote "System One" endpoint is not yet generally available in mainland
+# China. fallback-local=true keeps the whole platform runnable offline via a
+# deterministic calibrated heuristic; flip it to false and set api-key to use
+# the remote model.
+# ---------------------------------------------------------------------------
+jev:
+  base-url: https://api.typesafe.ai/v1
+  api-key: ""
+  timeout-ms: 2000
+  fallback-local: true
+  threshold: 0.5
+  gateway:
+    rate-limit-per-window: 120
+    rate-window-millis: 1000
+    default-budget-usd: 5.0
+    provider-timeout-ms: 15000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: jev-agent-runtime
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.jev.runtime: INFO
+    io.micrometer: WARN
