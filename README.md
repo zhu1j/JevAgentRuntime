@@ -315,8 +315,12 @@ spring:
 jev:
   base-url: https://api.typesafe.ai/v1
   api-key: ""                # 留空则使用离线兜底
+  model: jev-latest          # System One 决策模型
   fallback-local: true       # true=离线校准兜底；false=远程 Jev
+  fail-open: true            # true=远程失败回退本地兜底；false=抛 JevException（fail closed）
   timeout-ms: 2000
+  max-retries: 2             # 429/529/5xx 指数退避重试
+  initial-backoff-ms: 500
   threshold: 0.5
   gateway:
     rate-limit-per-window: 120   # 每租户固定窗口限流

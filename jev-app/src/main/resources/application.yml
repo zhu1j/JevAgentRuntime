@@ -21,8 +21,12 @@ spring:
 jev:
   base-url: https://api.typesafe.ai/v1
   api-key: ""
+  model: jev-latest            # System One decision model id
   timeout-ms: 2000
   fallback-local: true
+  fail-open: true              # true: remote failure falls back to local heuristic; false: fail closed (raise JevException)
+  max-retries: 2               # retries for HTTP 429/529/5xx (exponential backoff)
+  initial-backoff-ms: 500
   threshold: 0.5
   gateway:
     rate-limit-per-window: 120
