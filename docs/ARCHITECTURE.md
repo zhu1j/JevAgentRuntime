@@ -26,8 +26,12 @@ flowchart TB
     end
 
     subgraph L2["② 编排层 (jev-app)"]
-        ORCH["AgentOrchestrator<br/>单 Agent ReAct 变体主循环"]
+        RUNTIME{{"AgentRuntime<br/>local | agentscope<br/>(可插拔引擎)"}}
+        ORCH["AgentOrchestrator<br/>单 Agent ReAct 变体主循环<br/>(local 引擎)"]
+        HARNESS["AgentScopeAgentRuntime<br/>HarnessAgent<br/>(agentscope 引擎)"]
     end
+    RUNTIME --> ORCH
+    RUNTIME --> HARNESS
 
     subgraph L3["③ 能力层"]
         DL["jev-decision-layer<br/>Jev × 5"]

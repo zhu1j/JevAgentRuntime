@@ -122,8 +122,14 @@ public class AgentOrchestrator {
             List<McpTool> tools = mcpGateway.discover(tenant, request.tools());
             if (!tools.isEmpty()) {
                 McpTool tool = tools.get(i % tools.size());
-                McpToolResult toolResult = mcpGateway.invoke(tenant, tool,
-                        Map.of("goal", request.goal(), "step", i));
+                Map<String, Object> toolArgs = new HashMap<>();
+                toolArgs.put("goal", request.goal());
+                toolArgs.put("step", i);
+                // human-in-the-loop: forward explicit confirmation for DANGEROUS tools
+                if (Boolean.TRUE.equals(request.context().get("confirmDangerous"))) {
+                    toolArgs.put("confirmDangerous", true);
+                }
+                McpToolResult toolResult = mcpGateway.invoke(tenant, tool, toolArgs);
                 trace.add("tool", tool.name() + " -> " + toolResult.success(),
                         null, null, toolResult.latencyMs());
                 history.add("tool:" + tool.name() + "=" + toolResult.output());

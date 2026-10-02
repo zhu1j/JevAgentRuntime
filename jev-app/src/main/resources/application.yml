@@ -50,3 +50,17 @@ logging:
   level:
     com.jev.runtime: INFO
     io.micrometer: WARN
+
+# ---------------------------------------------------------------------------
+# Pluggable agent execution engine: local (default, fully self-contained /
+# offline) or agentscope (delegates the agent lifecycle — ReAct loop, session,
+# workspace, tool calling — to AgentScope HarnessAgent; requires a model
+# provider API key such as DASHSCOPE_API_KEY). In BOTH modes the Jev governance
+# layer (guardrail, grading, trace, decision audit) stays in front.
+# ---------------------------------------------------------------------------
+runtime:
+  engine: local
+  agentscope:
+    model: dashscope:qwen-plus
+    workspace: .agentscope/workspace
+    timeout-seconds: 120

@@ -49,6 +49,19 @@ public class McpGateway {
             return new McpToolResult(tool.name(), false, null, 0,
                     "tenant '" + tenantId + "' is not permitted to call " + tool.name());
         }
+        // human-in-the-loop gate: DANGEROUS tools never execute on the agent's word alone
+        if (tool.permission() == PermissionTier.DANGEROUS && !isConfirmed(arguments)) {
+            metrics.recordGuardrailBlock(tenantId, "mcp_requires_confirmation");
+            return new McpToolResult(tool.name(), false, null, 0,
+                    "DANGEROUS tool '" + tool.name() + "' requires explicit human confirmation "
+                            + "(re-invoke with confirmDangerous=true)");
+        }
         return executor.execute(tool, arguments);
+    }
+
+    /** DANGEROUS tools execute only after an explicit, auditable human confirmation. */
+    private boolean isConfirmed(Map<String, Object> arguments) {
+        Object flag = arguments == null ? null : arguments.get("confirmDangerous");
+        return Boolean.TRUE.equals(flag) || "true".equals(flag);
     }
 }

@@ -51,10 +51,13 @@
 | 能力域 | 说明 |
 |---|---|
 | 🎯 **模型路由与成本治理** | Jev 判难度 → 选模型档位 → 多供应商容错 → 多租户预算熔断 |
-| 🔧 **MCP 工具治理** | 工具注册 / 发现，租户级权限边界，调用审计 |
+| 🔧 **MCP 工具治理** | 工具注册 / 发现，租户级权限边界，**READ / WRITE / DANGEROUS 三级执行权限**，危险操作须人工确认 |
 | 🏢 **多租户隔离** | 限流、预算、工具可见性、记忆分区全链路以 `tenantId` 为键 |
-| 📊 **可观测** | Prometheus 指标 + 单次运行的决策轨迹（trace） |
+| 📊 **可观测** | Prometheus 指标 + 单次运行的决策轨迹（trace）+ **决策审计日志（可回放）** |
 | 🧪 **评测** | 黄金数据集 + Jev-as-judge 回归门禁（eval as a release gate） |
+| 🛡 **可靠性** | Jev 故障**自动降级**本地校准实现；**混沌开关**一键演练降级路径 |
+| ⚖️ **基准** | 内置 `/api/benchmark/tool-selection`：Jev 决策 vs LLM 生成 的延迟/成本对比 |
+| 🔌 **可插拔运行时** | `runtime.engine=local/agentscope`：本地编排 **或** 委托 AgentScope HarnessAgent，Jev 治理层始终在位 |
 
 > **设计哲学**：贵的大模型只做「慢思考生成」，高频的「快判断」全部下沉到 Jev。
 > 单一 Agent 把链路做深做透，多 Agent 只作为「弹性补充」——避免盲目堆叠带来的 token 爆炸。
@@ -276,6 +279,20 @@ curl http://localhost:8080/api/a2a/agents
 
 # 运行评测门禁
 curl -X POST http://localhost:8080/api/eval/run
+
+# 查看当前执行引擎（local | agentscope，由 runtime.engine 配置切换）
+curl http://localhost:8080/api/runtime
+
+# Jev vs LLM 决策基准：P50/P95、加速比、相对成本
+curl -X POST 'http://localhost:8080/api/benchmark/tool-selection?iterations=20'
+
+# 决策审计：最近决策明细 + 汇总（fallbackRate / chaosEvents）
+curl 'http://localhost:8080/api/audit/decisions?limit=20'
+curl http://localhost:8080/api/audit/stats
+
+# 混沌开关：注入 Jev 故障，现场演练「决策模型挂了，任务照常完成」
+curl -X POST 'http://localhost:8080/api/chaos/jev?enabled=true'
+curl -X POST 'http://localhost:8080/api/chaos/jev?enabled=false'
 ```
 
 完整接口文档见 [`docs/API.md`](docs/API.md)。
@@ -373,6 +390,8 @@ jev-agent-runtime/
 | [部署运维](docs/DEPLOYMENT.md) | 本地/容器/K8s 部署、监控告警 |
 | [开发指南](docs/DEVELOPMENT.md) | 环境搭建、模块依赖、扩展点、测试 |
 | [路线图](docs/ROADMAP.md) | 里程碑与演进方向 |
+| [运行时适配层](docs/RUNTIME.md) | 可插拔执行引擎：local 内嵌编排 / AgentScope HarnessAgent |
+| [可靠性设计](docs/RELIABILITY.md) | Jev 降级、混沌演练、决策审计、工具权限三级闸门 |
 | [常见问题](docs/FAQ.md) | 高频疑问与排错 |
 | [缺陷记录](docs/BUGFIX.md) | 已修复缺陷与根因分析 |
 

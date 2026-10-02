@@ -2,9 +2,11 @@ package com.jev.runtime.app;
 
 import com.jev.runtime.a2a.A2aDirectory;
 import com.jev.runtime.a2a.AgentCard;
+import com.jev.runtime.app.runtime.AgentRuntime;
 import com.jev.runtime.common.AgentRequest;
 import com.jev.runtime.common.AgentResponse;
-import com.jev.runtime.common.ModelTier;
+import com.jev.runtime.common.audit.DecisionAuditLog;
+import com.jev.runtime.common.audit.DecisionAuditRecord;
 import com.jev.runtime.eval.EvalCase;
 import com.jev.runtime.eval.EvalDataset;
 import com.jev.runtime.eval.EvalReport;
@@ -19,41 +21,56 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Public HTTP surface of the agent runtime: run an agent, inspect the model fleet,
- * inspect tenant-visible tools, register/see A2A peers, and run the evaluation gate.
+ * Public HTTP surface of the agent runtime: run an agent (through the pluggable
+ * {@link AgentRuntime} engine), inspect the model fleet, discover tenant tools,
+ * register A2A peers, read the decision audit log, run the benchmark and the
+ * evaluation gate.
  */
 @RestController
 @RequestMapping("/api")
 public class AgentController {
 
-    private final AgentOrchestrator orchestrator;
+    private final AgentRuntime agentRuntime;
     private final LlmGateway llmGateway;
     private final McpGateway mcpGateway;
     private final A2aDirectory a2aDirectory;
     private final EvalRunner evalRunner;
+    private final BenchmarkService benchmarkService;
+    private final DecisionAuditLog auditLog;
 
-    public AgentController(AgentOrchestrator orchestrator,
+    public AgentController(AgentRuntime agentRuntime,
                            LlmGateway llmGateway,
                            McpGateway mcpGateway,
                            A2aDirectory a2aDirectory,
-                           EvalRunner evalRunner) {
-        this.orchestrator = orchestrator;
+                           EvalRunner evalRunner,
+                           BenchmarkService benchmarkService,
+                           DecisionAuditLog auditLog) {
+        this.agentRuntime = agentRuntime;
         this.llmGateway = llmGateway;
         this.mcpGateway = mcpGateway;
         this.a2aDirectory = a2aDirectory;
         this.evalRunner = evalRunner;
+        this.benchmarkService = benchmarkService;
+        this.auditLog = auditLog;
     }
 
-    /** Run a single-agent task. */
+    /** Run an agent task through the configured execution engine. */
     @PostMapping("/agent/run")
     public AgentResponse run(@Valid @RequestBody AgentRequest request) {
-        return orchestrator.run(request);
+        return agentRuntime.run(request);
+    }
+
+    /** The currently active execution engine (local | agentscope). */
+    @GetMapping("/runtime")
+    public Map<String, String> runtime() {
+        return Map.of("engine", agentRuntime.engine());
     }
 
     /** List the registered model endpoints (the routing fleet). */
@@ -81,6 +98,27 @@ public class AgentController {
         return a2aDirectory.list();
     }
 
+    /** Decision audit log: most recent Jev decisions (for replay / debugging / eval). */
+    @GetMapping("/audit/decisions")
+    public List<DecisionAuditRecord> auditDecisions(@RequestParam(defaultValue = "50") int limit) {
+        return auditLog.recent(Math.max(1, Math.min(limit, 500)));
+    }
+
+    /** Decision audit statistics: totals, fallback rate, chaos events. */
+    @GetMapping("/audit/stats")
+    public Map<String, Object> auditStats() {
+        return auditLog.stats();
+    }
+
+    /**
+     * A/B benchmark: Jev structured decision vs. LLM text round-trip for the
+     * same bounded task (tool selection). Returns P50/P95, speed-up and cost.
+     */
+    @PostMapping("/benchmark/tool-selection")
+    public Map<String, Object> benchmark(@RequestParam(defaultValue = "20") int iterations) {
+        return benchmarkService.runToolSelectionBenchmark(iterations);
+    }
+
     /**
      * Run the evaluation gate against the live agent.
      * Returns the pass-rate that decides whether a change is safe to ship.
@@ -106,7 +144,7 @@ public class AgentController {
 
             @Override
             public java.util.function.Function<String, String> agent() {
-                return goal -> orchestrator.run(
+                return goal -> agentRuntime.run(
                         new AgentRequest("eval-tenant", "eval-session", goal, List.of(), Map.of())).answer();
             }
         };

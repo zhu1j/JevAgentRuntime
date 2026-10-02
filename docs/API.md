@@ -196,7 +196,66 @@ curl -X POST http://localhost:8080/api/eval/run
 
 ---
 
-## 7. 运维端点
+## 7. 运行时 · 基准 · 审计 · 混沌
+
+### 7.1 执行引擎
+
+`GET /api/runtime`
+
+返回当前 Agent 执行引擎（`local` 内嵌编排 / `agentscope` 委托 HarnessAgent）。
+引擎由 `runtime.engine` 配置切换，详见 [RUNTIME](RUNTIME.md)。
+
+```bash
+curl http://localhost:8080/api/runtime
+# {"engine":"local"}
+```
+
+### 7.2 决策基准
+
+`POST /api/benchmark/tool-selection?iterations={n}`
+
+同一个有界决策（工具选择）跑两条臂：Jev 结构化决策 vs LLM 文本生成+解析，
+输出 P50/P95 延迟、加速比、相对成本与决策一致性。
+
+```bash
+curl -X POST 'http://localhost:8080/api/benchmark/tool-selection?iterations=20'
+```
+
+```json
+{
+  "iterations": 20,
+  "jevLatency": { "p50Ms": 0, "p95Ms": 1, "meanMs": 0.2 },
+  "llmLatency": { "p50Ms": 240, "p95Ms": 263, "meanMs": 235.1 },
+  "speedupX": 263.0,
+  "relativeCostX": 400.0,
+  "consistency": 1.0
+}
+```
+
+> 离线模式下 LLM 臂以真实量级延迟模拟；接入真实供应商后重跑得到绝对数字。
+
+### 7.3 决策审计
+
+`GET /api/audit/decisions?limit={n}` — 最近的 Jev 决策明细：输入摘要、结果、置信度、来源（remote / local-fallback）、是否降级、是否在混沌演练中。
+
+`GET /api/audit/stats` — 汇总统计：
+
+```bash
+curl http://localhost:8080/api/audit/stats
+# {"total":28,"fallbacks":14,"chaosEvents":14,"fallbackRate":0.5,"retained":28}
+```
+
+### 7.4 混沌开关
+
+`POST /api/chaos/jev?enabled={true|false}` — 注入 / 停止 Jev 主实现故障，现场演练降级路径（Game-day）。
+
+`GET /api/chaos/jev` — 查询当前混沌状态。
+
+详见 [RELIABILITY](RELIABILITY.md)。
+
+---
+
+## 8. 运维端点
 
 | 端点 | 说明 |
 |---|---|
@@ -207,7 +266,7 @@ curl -X POST http://localhost:8080/api/eval/run
 
 ---
 
-## 8. 错误码
+## 9. 错误码
 
 | 状态码 | 场景 | 说明 |
 |---|---|---|

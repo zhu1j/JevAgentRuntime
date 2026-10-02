@@ -11,13 +11,15 @@ import java.util.Map;
  * @param inputSchema JSON-schema-like description of arguments
  * @param owner       the tenant/team that publishes the tool
  * @param allowedTenants tenants permitted to invoke it ("*" = public)
+ * @param permission  execution risk tier; DANGEROUS tools require human confirmation
  */
 public record McpTool(
         String name,
         String description,
         Map<String, Object> inputSchema,
         String owner,
-        List<String> allowedTenants
+        List<String> allowedTenants,
+        PermissionTier permission
 ) {
     public boolean allows(String tenantId) {
         return allowedTenants.contains("*") || allowedTenants.contains(tenantId);

@@ -18,13 +18,22 @@ public class InMemoryMcpRegistry implements McpRegistry {
     public InMemoryMcpRegistry() {
         // seed a few representative enterprise tools
         register(new McpTool("order.query", "Query an order by id",
-                Map.of("orderId", "string"), "platform", List.of("*")));
+                Map.of("orderId", "string"), "platform", List.of("*"), PermissionTier.READ));
         register(new McpTool("kb.search", "Search the internal knowledge base",
-                Map.of("query", "string", "topK", "int"), "platform", List.of("*")));
+                Map.of("query", "string", "topK", "int"), "platform", List.of("*"), PermissionTier.READ));
         register(new McpTool("billing.refund", "Issue a refund for an order",
-                Map.of("orderId", "string", "amount", "number"), "finance", List.of("finance", "support")));
+                Map.of("orderId", "string", "amount", "number"), "finance", List.of("finance", "support"),
+                PermissionTier.DANGEROUS));
         register(new McpTool("repo.grep", "Search a code repository",
-                Map.of("repo", "string", "pattern", "string"), "dev", List.of("dev")));
+                Map.of("repo", "string", "pattern", "string"), "dev", List.of("dev"), PermissionTier.READ));
+        // business-line tools: the "shop" tenant is the seckill/order backend
+        // (e.g. zhu-seckill) exposed to agents through this gateway
+        register(new McpTool("seckill.queryStock", "Query real-time seckill stock (Redis vs DB)",
+                Map.of("activityId", "string"), "shop", List.of("shop"), PermissionTier.READ));
+        register(new McpTool("seckill.queryOrders", "Query recent seckill orders for an activity",
+                Map.of("activityId", "string", "limit", "int"), "shop", List.of("shop"), PermissionTier.READ));
+        register(new McpTool("shop.cancelOrder", "Cancel an unpaid shop order",
+                Map.of("orderId", "string"), "shop", List.of("shop"), PermissionTier.WRITE));
     }
 
     @Override

@@ -331,3 +331,31 @@ flowchart LR
 ---
 
 <p align="right"><a href="README.md">← 返回备考中心</a></p>
+
+---
+
+## 追加：运行时适配层与可靠性（AgentScope 迭代新增）
+
+**Q：面试官问"你的编排为什么自己写？为什么不用 AgentScope / LangGraph？"怎么答？**
+A：分两层回答。第一，项目里引擎本来就是可插拔的——`AgentRuntime` 接口 + 条件注入：
+`runtime.engine=local` 走内嵌编排器（零依赖、离线可跑、教学友好），`runtime.engine=agentscope`
+把 Agent 生命周期（ReAct、Session、Workspace、工具调用）委托给 AgentScope 的 HarnessAgent，
+控制器完全无感知。第二，差异化从来不在引擎，而在治理层：无论哪种引擎，Jev 护栏、决策审计、
+工具权限三级闸门、评测门禁都先于引擎生效。一句话：**运行时交给框架，治理握在自己手里**。
+
+**Q："Jev 挂了怎么办？"**
+A：三层防线。① 护栏先行拦截危险请求；② `ResilientJevClient` 弹性包装：主实现超时/异常
+自动降级到本地校准启发式，任务照常完成；③ 每个决策写审计日志（来源、置信度、是否降级）。
+还能现场演示：`POST /api/chaos/jev?enabled=true` 打开混沌开关注入 Jev 故障，
+`/api/audit/stats` 里 fallbackRate 立刻变化，任务仍然 COMPLETED。
+
+**Q："怎么防止 Agent 乱调危险工具？"**
+A：工具权限三级：READ（如 order.query）自动放行；WRITE（如 shop.cancelOrder）执行并审计；
+DANGEROUS（如 billing.refund）必须人工确认——请求 context 带 `confirmDangerous=true` 才执行，
+否则 MCP 网关直接拒绝并提示。闸门在网关层，Agent 侧无法绕过。
+
+**Q："怎么证明 Jev 比 LLM 快？"**
+A：项目内置 `/api/benchmark/tool-selection`：同一个有界决策跑 Jev 结构化决策 vs
+LLM 文本生成+解析两条臂，输出 P50/P95、加速比、相对成本、一致性。离线模式 LLM 臂按真实量级
+模拟延迟（~180-260ms），实测 Jev P95≈0ms；接真实 Provider 后重跑得到绝对数字——
+不抄厂商宣称的 193×/444×，只写自己测出来的。

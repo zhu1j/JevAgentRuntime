@@ -1,5 +1,6 @@
 package com.jev.runtime.common;
 
+import com.jev.runtime.common.audit.DecisionAuditLog;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,10 +17,21 @@ public class JevAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public JevClient jevClient(JevProperties properties) {
+    public DecisionAuditLog decisionAuditLog() {
+        return new DecisionAuditLog();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JevClient jevClient(JevProperties properties, DecisionAuditLog auditLog) {
+        JevClient primary;
         if (properties.isFallbackLocal() || properties.getApiKey() == null || properties.getApiKey().isBlank()) {
-            return LocalJevClient.INSTANCE;
+            primary = LocalJevClient.INSTANCE;
+        } else {
+            primary = new RemoteJevClient(properties);
         }
-        return new RemoteJevClient(properties);
+        // every decision flows through the resilience wrapper: fallback on failure,
+        // chaos injection for game-days, and a full decision audit trail
+        return new ResilientJevClient(primary, LocalJevClient.INSTANCE, auditLog);
     }
 }

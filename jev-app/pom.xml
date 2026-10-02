@@ -45,6 +45,12 @@
             <groupId>com.jev.runtime</groupId>
             <artifactId>jev-eval</artifactId>
         </dependency>
+        <!-- AgentScope Harness: the pluggable production agent runtime
+             (activated with runtime.engine=agentscope + a model API key) -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-harness</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
