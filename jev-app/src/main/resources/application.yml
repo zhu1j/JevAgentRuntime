@@ -29,6 +29,21 @@ jev:
     rate-window-millis: 1000
     default-budget-usd: 5.0
     provider-timeout-ms: 15000
+  # Elastic multi-agent team pipeline (leader-member delegation, Jev-routed).
+  # The single-agent orchestrator remains the backbone and serves as a member.
+  team:
+    enabled: true
+    max-members: 3             # bound delegation fan-out per run (cost/latency guard)
+    members:
+      - id: research
+        description: Research specialist for information gathering and summarization
+        skills: [search, lookup, summarize, research]
+      - id: code
+        description: Coding specialist for implementation and debugging
+        skills: [implement, refactor, debug, code]
+      - id: support
+        description: Customer support specialist for tenant-facing answers
+        skills: [respond, escalate, refund, support]
 
 management:
   endpoints:
