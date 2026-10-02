@@ -5,7 +5,7 @@
 ## 目录
 
 - [1. 约定](#1-约定)
-- [2. 运行 Agent 任务](#2-运行-agent-任务)
+- [2. 运行 Agent 任务（单 Agent / 多 Agent 团队）](#2-运行-agent-任务)
 - [3. 模型舰队](#3-模型舰队)
 - [4. 租户工具](#4-租户工具)
 - [5. A2A 伙伴 Agent](#5-a2a-伙伴-agent)
@@ -92,6 +92,51 @@ curl -X POST http://localhost:8080/api/agent/run \
   ]
 }
 ```
+
+---
+
+### 2.1 运行多 Agent 团队任务
+
+`POST /api/team/run`
+
+请求体与 `/api/agent/run` 相同（`AgentRequest`）。Leader 用 Jev `CHOICE` 从
+`jev.team.members` 配置的候选成员中选出 ≤ `jev.team.max-members` 个成员，
+逐成员委派子任务并用 Jev `NOUL` 验证产出，最后用 Jev `SCORE` 对综合答案评分。
+任一步骤在 Jev 不可用时退化到确定性本地启发式，保证管线始终可完成。
+
+```bash
+curl -X POST http://localhost:8080/api/team/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "tenantId": "support",
+    "sessionId": "s2",
+    "goal": "research the refund policy and draft a customer reply"
+  }'
+```
+
+#### 响应体
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `synthesizedAnswer` | string | Leader 综合各成员产出的最终答案 |
+| `steps` | array | 逐成员执行轨迹（memberId/subGoal/answer/jevPrimitive/jevValue） |
+| `gradingScore` | number | 综合答案的 Jev `SCORE` 评分 `[0,1]` |
+
+```json
+{
+  "synthesizedAnswer": "Synthesized answer for goal: ...\n- research: ...\n- support: ...",
+  "steps": [
+    { "memberId": "research", "subGoal": "[research] ...", "answer": "...",
+      "jevPrimitive": "NOUL", "jevValue": 0.9 },
+    { "memberId": "support",  "subGoal": "[support] ...",  "answer": "...",
+      "jevPrimitive": "NOUL", "jevValue": 0.9 }
+  ],
+  "gradingScore": 0.62
+}
+```
+
+> `jev.team.enabled=false` 时该端点返回 **503**（纯单 Agent 部署）。
+> 成员注册与跨进程远程成员的演进见 `docs/adr/ADR-003-multi-agent-team-pipeline.md`。
 
 ---
 
@@ -216,6 +261,7 @@ curl -X POST http://localhost:8080/api/eval/run
 | 429 | 限流 | 该租户超出窗口限流阈值 |
 | 500 | 服务器错误 | 未预期异常 |
 | 503 | 熔断 | 供应商端点全部熔断且无兜底 |
+| 503 | 团队管线停用 | `jev.team.enabled=false` 时调用 `/api/team/run` |
 
 ---
 

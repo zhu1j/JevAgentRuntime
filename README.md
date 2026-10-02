@@ -127,7 +127,7 @@ flowchart TB
     end
 
     subgraph App["jev-app"]
-        AC["AgentController<br/>/api/agent/run · /models · /tools · /a2a · /eval"]
+        AC["AgentController<br/>/api/agent/run · /team/run · /models · /tools · /a2a · /eval"]
         AO["AgentOrchestrator<br/>单 Agent 主线循环"]
     end
 
@@ -166,14 +166,14 @@ flowchart TB
 | 模块 | 职责 | 关键类 |
 |---|---|---|
 | `jev-runtime-common` | Jev 原语 / 请求 / 决策、远程与本地客户端、共享 DTO、自动配置 | `JevPrimitive` `JevClient` `LocalJevClient` `RemoteJevClient` |
-| `jev-decision-layer` | Jev 五大用途：路由、护栏、轨迹校验、上下文压缩、结果评分 | `JevRouter` `JevGuardrail` `JevTrajectoryVerifier` `JevContextCompactor` `JevGrader` |
+| `jev-decision-layer` | Jev 五大用途：路由、护栏、轨迹校验、上下文压缩、结果评分；弹性多 Agent 团队管线 | `JevRouter` `JevGuardrail` `JevTrajectoryVerifier` `JevContextCompactor` `JevGrader` `TeamPipeline` |
 | `jev-llm-gateway` | 多模型路由、多供应商容错、熔断、租户限流、成本计量、Key 池 | `LlmGateway` `EndpointSelector` `CostMeter` `TenantRateLimiter` `KeyPool` |
 | `jev-mcp-gateway` | MCP 工具注册 / 发现、租户级权限边界、调用 | `McpGateway` `InMemoryMcpRegistry` `McpExecutor` |
 | `jev-a2a` | Agent Card 注册发现、跨 Agent 委派（弹性多 Agent 缝） | `A2aDirectory` `AgentCard` |
 | `jev-memory` | 分层记忆 working / episodic / semantic | `LayeredMemoryService` `InMemoryMemoryStore` |
 | `jev-observability` | Micrometer / Prometheus 指标 + 决策轨迹 | `AgentMetrics` `TraceRecorder` |
 | `jev-eval` | 黄金数据集 + Jev-as-judge 回归门禁 | `EvalRunner` `EvalDataset` `EvalReport` |
-| `jev-app` | Spring Boot 启动、编排器、REST 控制器、种子配置 | `JevAgentRuntimeApplication` `AgentOrchestrator` `AgentController` |
+| `jev-app` | Spring Boot 启动、编排器、REST 控制器、团队管线装配、种子配置 | `JevAgentRuntimeApplication` `AgentOrchestrator` `AgentController` `TeamConfiguration` |
 
 ---
 
@@ -259,6 +259,36 @@ curl -X POST http://localhost:8080/api/agent/run \
 }
 ```
 
+### 运行多 Agent 团队任务（弹性补充）
+
+```bash
+curl -X POST http://localhost:8080/api/team/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "tenantId": "support",
+    "sessionId": "s2",
+    "goal": "research the refund policy and implement a refund summary"
+  }'
+```
+
+Leader 用 Jev `CHOICE` 从 `jev.team.members` 中选出 ≤ `max-members` 个成员，
+逐成员委派子任务并用 Jev `NOUL` 验证产出，最后 Jev `SCORE` 对综合答案评分。响应示例：
+
+```json
+{
+  "synthesizedAnswer": "Synthesized answer for goal: ...\n- research: ...\n- code: ...",
+  "steps": [
+    { "memberId": "research", "subGoal": "[research] ...", "answer": "...", "jevPrimitive": "NOUL", "jevValue": 0.9 },
+    { "memberId": "code",     "subGoal": "[code] ...",     "answer": "...", "jevPrimitive": "NOUL", "jevValue": 0.9 }
+  ],
+  "gradingScore": 0.62
+}
+```
+
+> 设 `jev.team.enabled=false` 可退回纯单 Agent 部署（该端点返回 503）。
+> 设计权衡与「为何不接入 AgentScope 框架」的评估证据见
+> [`docs/adr/ADR-003-multi-agent-team-pipeline.md`](docs/adr/ADR-003-multi-agent-team-pipeline.md)。
+
 ### 其他端点
 
 ```bash
@@ -323,6 +353,13 @@ jev:
     rate-window-millis: 1000
     default-budget-usd: 5.0      # 每租户默认预算
     provider-timeout-ms: 15000
+  team:                          # 弹性多 Agent 团队管线（leader-member，Jev 路由）
+    enabled: true                # false=纯单 Agent 部署，/api/team/run 返回 503
+    max-members: 3               # 每次运行委派成员数上限（成本/延迟护栏）
+    members:                     # 候选成员（leader 按 goal 从中选择）
+      - { id: research, description: "信息检索与摘要", skills: [search, summarize] }
+      - { id: code,     description: "编码实现与调试", skills: [implement, debug] }
+      - { id: support,  description: "客服应答与升级", skills: [respond, refund] }
 
 management:
   endpoints:
@@ -348,7 +385,8 @@ jev-agent-runtime/
 │   ├── DEVELOPMENT.md           # 开发指南
 │   ├── ROADMAP.md               # 路线图
 │   ├── FAQ.md                   # 常见问题
-│   └── BUGFIX.md                # 缺陷排查记录
+│   ├── BUGFIX.md                # 缺陷排查记录
+│   └── adr/                     # 架构决策记录（ADR-003 多 Agent 团队管线）
 ├── jev-runtime-common/          # 共享域模型 + Jev 客户端
 ├── jev-decision-layer/          # Jev 五大用途
 ├── jev-llm-gateway/             # LLM 网关
@@ -375,6 +413,7 @@ jev-agent-runtime/
 | [路线图](docs/ROADMAP.md) | 里程碑与演进方向 |
 | [常见问题](docs/FAQ.md) | 高频疑问与排错 |
 | [缺陷记录](docs/BUGFIX.md) | 已修复缺陷与根因分析 |
+| [决策记录 ADR](docs/adr/) | 关键架构决策与评估证据（ADR-003：多 Agent 团队管线） |
 
 ---
 
@@ -410,7 +449,7 @@ jev-agent-runtime/
 A：可以。默认启用离线校准兜底（`LocalJevClient`），clone 即可端到端运行。
 
 **Q：为什么默认单 Agent，而不是多 Agent？**
-A：多 Agent 的收益常来自算力堆叠而非协作本身。本项目以单 Agent 为主线把链路做深，多 Agent 仅作为「弹性补充」经 A2A 委派。
+A：多 Agent 的收益常来自算力堆叠而非协作本身。本项目以单 Agent 为主线把链路做深，多 Agent 仅作为「弹性补充」：进程内由 `TeamPipeline`（leader–member，Jev 负责选成员 / 验证 / 评分）委派，跨进程经 A2A。为何不接入 AgentScope 等框架，见 [`docs/adr/ADR-003-multi-agent-team-pipeline.md`](docs/adr/ADR-003-multi-agent-team-pipeline.md)。
 
 **Q：离线兜底是不是"假的"？**
 A：它是**确定性的本地启发式**，用于在无外部依赖时保持工程可运行、可测试、可演示；接入真实 Jev 后即替换。
